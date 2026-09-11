@@ -624,7 +624,7 @@ class PlayerRepository @Inject constructor(
     internal suspend fun enqueueWorkerActionUnlocked(slot: Int, action: QueuedAction): Boolean {
         val flags = getFlags()
         val worker = flags.workerForSlot(slot) ?: return false
-        if (worker.sessionQueue.size >= 1) return false
+        if (worker.sessionQueue.size >= maxQueueSize(flags)) return false
         updateFlagsUnlocked(flags.withWorkerForSlot(slot, worker.copy(
             sessionQueue = worker.sessionQueue + action.copy(levelAtQueue = queueLevelFor(action)))))
         return true
@@ -648,6 +648,29 @@ class PlayerRepository @Inject constructor(
         val flags = getFlags()
         val worker = flags.workerForSlot(slot) ?: return
         updateFlagsUnlocked(flags.withWorkerForSlot(slot, worker.copy(sessionQueue = listOf(action) + worker.sessionQueue)))
+    }
+
+    /** Removes and returns the queued item at [index] in the given worker slot's queue. */
+    suspend fun removeFromWorkerQueue(slot: Int, index: Int): QueuedAction? = playerMutex.withLock {
+        val flags = getFlagsUnlocked()
+        val worker = flags.workerForSlot(slot) ?: return@withLock null
+        val queue = worker.sessionQueue
+        if (index < 0 || index >= queue.size) return@withLock null
+        val removed = queue[index]
+        val newQueue = queue.toMutableList().apply { removeAt(index) }
+        updateFlagsUnlocked(flags.withWorkerForSlot(slot, worker.copy(sessionQueue = newQueue)))
+        removed
+    }
+
+    /** Moves a queued item between positions in the given worker slot's queue. */
+    suspend fun moveWorkerQueueItem(slot: Int, fromIndex: Int, toIndex: Int) = playerMutex.withLock {
+        val flags = getFlagsUnlocked()
+        val worker = flags.workerForSlot(slot) ?: return@withLock
+        val queue = worker.sessionQueue.toMutableList()
+        if (fromIndex < 0 || toIndex < 0 || fromIndex >= queue.size || toIndex >= queue.size) return@withLock
+        val item = queue.removeAt(fromIndex)
+        queue.add(toIndex, item)
+        updateFlagsUnlocked(flags.withWorkerForSlot(slot, worker.copy(sessionQueue = queue)))
     }
 
     suspend fun clearHiredWorker(slot: Int) = playerMutex.withLock {

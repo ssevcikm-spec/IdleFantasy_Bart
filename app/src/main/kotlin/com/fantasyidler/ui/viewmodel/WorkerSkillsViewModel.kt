@@ -61,6 +61,7 @@ data class WorkerSkillsUiState(
     /** Worker tier fixed duration for gathering/combat sessions. */
     val gatheringDurationMs: Long = 0L,
     val maxCraftQty: Int = Int.MAX_VALUE,
+    val workerQueueMax: Int = 3,
     val inventory: Map<String, Int> = emptyMap(),
     val selectedRecipe: CraftableRecipe? = null,
     val herbloreAshKey: String? = null,
@@ -75,7 +76,7 @@ data class WorkerSkillsUiState(
     val currentWorker: HiredWorker? get() = if (selectedSlot == 2) hiredWorker2 else hiredWorker
     val currentQueue: List<QueuedAction> get() = if (selectedSlot == 2) workerQueue2 else workerQueue
     val currentSessionAssignedItems: Map<String, Int> get() = if (selectedSlot == 2) sessionAssignedItems2 else sessionAssignedItems
-    val workerQueueFull: Boolean get() = currentSession != null && !currentSession!!.completed
+    val workerQueueFull: Boolean get() = currentQueue.size >= workerQueueMax
 
     fun maxCraftable(recipe: CraftableRecipe): Int {
         if (recipe.materials.isEmpty()) return 0
@@ -134,6 +135,7 @@ class WorkerSkillsViewModel @Inject constructor(
                 sessionDurationMs     = currentWorker?.tier?.craftingSessionMs ?: agilityMs,
                 gatheringDurationMs   = tierDurationMs,
                 maxCraftQty           = currentWorker?.tier?.maxCraftQty ?: Int.MAX_VALUE,
+                workerQueueMax        = playerRepo.maxQueueSize(flags),
                 inventory             = inv,
                 showSessionEndTime    = flags.showSessionEndTime,
                 hiddenRecipeKeys      = boostRepo.gatedRecipeKeys - boostRepo.unlockedRecipeKeys(flags),
@@ -145,6 +147,12 @@ class WorkerSkillsViewModel @Inject constructor(
 
     fun setSelectedSlot(slot: Int) {
         _uiState.update { it.copy(selectedSlot = slot) }
+    }
+
+    fun removeFromWorkerQueue(index: Int) {
+        viewModelScope.launch {
+            playerRepo.removeFromWorkerQueue(_uiState.value.selectedSlot, index)
+        }
     }
 
     private fun sessionAssignedItems(session: SkillSession?): Map<String, Int> =

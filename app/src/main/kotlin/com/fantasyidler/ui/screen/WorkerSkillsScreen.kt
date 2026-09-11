@@ -68,6 +68,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fantasyidler.R
+import com.fantasyidler.data.model.QueuedAction
 import com.fantasyidler.data.model.SkillSession
 import com.fantasyidler.data.model.Skills
 import com.fantasyidler.data.model.WorkerTier
@@ -198,6 +199,17 @@ fun WorkerSkillsScreen(
                         session       = session,
                         showEndTime   = state.showSessionEndTime,
                         assignedItems = state.currentSessionAssignedItems,
+                    )
+                }
+            }
+
+            // Queued worker actions (multi-item queue)
+            if (state.currentQueue.isNotEmpty()) {
+                item(key = "worker_queue") {
+                    WorkerQueueBanner(
+                        queue    = state.currentQueue,
+                        context  = context,
+                        onRemove = viewModel::removeFromWorkerQueue,
                     )
                 }
             }
@@ -490,6 +502,59 @@ private fun WorkerActiveSessionBanner(
 // ---------------------------------------------------------------------------
 // Worker queue banner
 // ---------------------------------------------------------------------------
+
+@Composable
+private fun WorkerQueueBanner(
+    queue: List<QueuedAction>,
+    context: Context,
+    onRemove: (Int) -> Unit,
+) {
+    if (queue.isEmpty()) return
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Text(
+                text  = "Queue (" + queue.size + ")",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(Modifier.height(4.dp))
+            queue.forEachIndexed { index, action ->
+                val title = action.skillDisplayName.ifEmpty { GameStrings.skillName(context, action.skillName) }
+                val activity = action.activityKey
+                    .replace('_', ' ')
+                    .replaceFirstChar { it.uppercase() }
+                    .takeIf { action.activityKey.isNotEmpty() }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = listOfNotNull(title, activity).joinToString(" — "),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        if (action.qty > 0) {
+                            Text(
+                                text = "× " + "%,".format(action.qty),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    IconButton(onClick = { onRemove(index) }) {
+                        Icon(Icons.Filled.Remove, contentDescription = "Remove")
+                    }
+                }
+            }
+        }
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Worker craft skill sheet
