@@ -166,7 +166,7 @@ class WorkerQueuedSessionStarter @Inject constructor(
                 val logData = gameData.logs[logKey] ?: return
                 val ashKey  = ashForLog(logKey)
                 val frames  = buildCraftFrames(xpMap[Skills.FIREMAKING] ?: 0L, qty, logData.xpPerLog.toDouble(), 1, ashKey,
-                    efficiency = gameData.toolEfficiency(equipped[EquipSlot.TINDERBOX], EquipSlot.TINDERBOX, logData.levelRequired, skillLevels = levels, heirloomXp = flags.heirloomXp))
+                    efficiency = gameData.toolEfficiency(equipped[EquipSlot.TINDERBOX], EquipSlot.TINDERBOX, logData.levelRequired, skillLevels = levels, heirloomXp = flags.heirloomXp), qtyMultiplier = tier.craftingOutputMultiplier)
                 startSession(slot, action, frames, durationMs, efficiencyMultiplier, levelAtStart)
             }
             Skills.RUNECRAFTING -> {
@@ -177,7 +177,7 @@ class WorkerQueuedSessionStarter @Inject constructor(
                 val level    = XpTable.levelForXp(startXp)
                 val ashBonus = action.catalystKey?.let { ashRuneBonus(it) } ?: 0
                 val mult     = (when { level >= 75 -> 3; level >= 50 -> 2; else -> 1 }) + ashBonus
-                val totalRunes   = mult * qty
+                val totalRunes   = Math.round(mult * qty * tier.craftingOutputMultiplier)
                 val totalXpGain  = (runeData.xpPerRune * totalRunes).toInt()
                 val xpAfter      = startXp + totalXpGain
                 val frames = listOf(SessionFrame(
@@ -216,26 +216,26 @@ class WorkerQueuedSessionStarter @Inject constructor(
                 val r   = gameData.smithingRecipes[action.activityKey] ?: return
                 val qty = action.qty.takeIf { it > 0 } ?: return
                 val frames = buildCraftFrames(xpMap[Skills.SMITHING] ?: 0L, qty, r.xpPerItem, r.outputQuantity, action.activityKey,
-                    efficiency = gameData.toolEfficiency(equipped[EquipSlot.HAMMER], EquipSlot.HAMMER, r.levelRequired, skillLevels = levels, heirloomXp = flags.heirloomXp))
+                    efficiency = gameData.toolEfficiency(equipped[EquipSlot.HAMMER], EquipSlot.HAMMER, r.levelRequired, skillLevels = levels, heirloomXp = flags.heirloomXp), qtyMultiplier = tier.craftingOutputMultiplier)
                 startSession(slot, action, frames, durationMs, efficiencyMultiplier, levelAtStart)
             }
             Skills.COOKING -> {
                 val r: CookingRecipe = gameData.cookingRecipes[action.activityKey] ?: return
                 val qty = action.qty.takeIf { it > 0 } ?: return
                 val frames = buildCraftFrames(xpMap[Skills.COOKING] ?: 0L, qty, r.xpPerItem, 1, r.cookedItem,
-                    efficiency = gameData.toolEfficiency(equipped[EquipSlot.FRYING_PAN], EquipSlot.FRYING_PAN, r.levelRequired, skillLevels = levels, heirloomXp = flags.heirloomXp))
+                    efficiency = gameData.toolEfficiency(equipped[EquipSlot.FRYING_PAN], EquipSlot.FRYING_PAN, r.levelRequired, skillLevels = levels, heirloomXp = flags.heirloomXp), qtyMultiplier = tier.craftingOutputMultiplier)
                 startSession(slot, action, frames, durationMs, efficiencyMultiplier, levelAtStart)
             }
             Skills.FLETCHING -> {
                 val r   = gameData.fletchingRecipes[action.activityKey] ?: return
                 val qty = action.qty.takeIf { it > 0 } ?: return
-                val frames = buildCraftFrames(xpMap[Skills.FLETCHING] ?: 0L, qty, r.xpPerItem, r.outputQuantity, r.itemName)
+                val frames = buildCraftFrames(xpMap[Skills.FLETCHING] ?: 0L, qty, r.xpPerItem, r.outputQuantity, r.itemName, qtyMultiplier = tier.craftingOutputMultiplier)
                 startSession(slot, action, frames, durationMs, efficiencyMultiplier, levelAtStart)
             }
             Skills.CRAFTING -> {
                 val r   = gameData.craftingRecipes[action.activityKey] ?: return
                 val qty = action.qty.takeIf { it > 0 } ?: return
-                val frames = buildCraftFrames(xpMap[Skills.CRAFTING] ?: 0L, qty, r.xpPerItem, r.outputQuantity, action.activityKey)
+                val frames = buildCraftFrames(xpMap[Skills.CRAFTING] ?: 0L, qty, r.xpPerItem, r.outputQuantity, action.activityKey, qtyMultiplier = tier.craftingOutputMultiplier)
                 startSession(slot, action, frames, durationMs, efficiencyMultiplier, levelAtStart)
             }
             Skills.HERBLORE -> {
@@ -244,13 +244,13 @@ class WorkerQueuedSessionStarter @Inject constructor(
                 val catalystKey = action.catalystKey
                 val outputKey   = if (catalystKey != null) "enhanced_${action.activityKey}" else action.activityKey
                 if (catalystKey != null) playerRepo.consumeItemsUnlocked(mapOf(catalystKey to qty))
-                val frames = buildCraftFrames(xpMap[Skills.HERBLORE] ?: 0L, qty, r.xpPerItem, r.outputQuantity, outputKey)
+                val frames = buildCraftFrames(xpMap[Skills.HERBLORE] ?: 0L, qty, r.xpPerItem, r.outputQuantity, outputKey, qtyMultiplier = tier.craftingOutputMultiplier)
                 startSession(slot, action, frames, durationMs, efficiencyMultiplier, levelAtStart)
             }
             Skills.CONSTRUCTION -> {
                 val r   = gameData.constructionRecipes[action.activityKey] ?: return
                 val qty = action.qty.takeIf { it > 0 } ?: return
-                val frames = buildCraftFrames(xpMap[Skills.CONSTRUCTION] ?: 0L, qty, r.xpPerItem, r.outputQuantity, action.activityKey)
+                val frames = buildCraftFrames(xpMap[Skills.CONSTRUCTION] ?: 0L, qty, r.xpPerItem, r.outputQuantity, action.activityKey, qtyMultiplier = tier.craftingOutputMultiplier)
                 startSession(slot, action, frames, durationMs, efficiencyMultiplier, levelAtStart)
             }
             Skills.THIEVING -> {
@@ -424,9 +424,10 @@ class WorkerQueuedSessionStarter @Inject constructor(
         else            -> 0
     }
 
-    private fun buildCraftFrames(startXp: Long, qty: Int, xpPerItem: Double, outputQty: Int, outputKey: String, efficiency: Float = 1.0f): List<SessionFrame> {
+    private fun buildCraftFrames(startXp: Long, qty: Int, xpPerItem: Double, outputQty: Int, outputKey: String, efficiency: Float = 1.0f, qtyMultiplier: Float = 1.0f): List<SessionFrame> {
         val totalXpGain = (xpPerItem * qty * efficiency).toInt()
         val xpAfter     = startXp + totalXpGain
+        val totalItems  = Math.round(outputQty * qty * qtyMultiplier)
         return listOf(SessionFrame(
             minute      = 1,
             xpGain      = totalXpGain,
@@ -434,7 +435,7 @@ class WorkerQueuedSessionStarter @Inject constructor(
             xpAfter     = xpAfter,
             levelBefore = XpTable.levelForXp(startXp),
             levelAfter  = XpTable.levelForXp(xpAfter),
-            items       = mapOf(outputKey to outputQty * qty),
+            items       = mapOf(outputKey to totalItems),
             leveledUp   = XpTable.levelForXp(xpAfter) > XpTable.levelForXp(startXp),
             kills       = qty,
         ))

@@ -483,16 +483,21 @@ enum class WorkerTier {
         MASTER       -> 50_000L
     }
 
-    /** Per-item time for crafting/prayer/runecrafting sessions, scaled by efficiencyMultiplier
-     *  (1 min/item at 1.0x, faster above, slower below) so higher tiers craft faster, not just longer. */
-    val craftingPerItemMs: Long get() = (60_000L / efficiencyMultiplier).toLong()
+    /** Per-item time for crafting/prayer/runecrafting sessions. Uniform (1 min/item) across
+     *  tiers: tier efficiency now scales the *output quantity* (see [craftingOutputMultiplier]),
+     *  not the speed, so a higher tier produces more items from the same materials. */
+    val craftingPerItemMs: Long get() = 60_000L
 
     /** Effective session duration for the crafting estimate display formula (perItemMs * 60). */
     val craftingSessionMs: Long get() = craftingPerItemMs * 60L
 
     /** Maximum qty for crafting/prayer/runecrafting sessions; LONG_LABORER is uncapped.
-     *  = session hours × efficiencyMultiplier × 60, so a full-cap session takes about as long as [durationMs]. */
-    val maxCraftQty: Int get() = if (this == LONG_LABORER) Int.MAX_VALUE else (combinedGatheringMultiplier * 60).toInt()
+     *  = session duration / per-item time, so a full-cap session takes about as long as [durationMs]. */
+    val maxCraftQty: Int get() = if (this == LONG_LABORER) Int.MAX_VALUE else (durationMs / craftingPerItemMs).toInt()
+
+    /** Multiplier applied to the number of crafted items so higher tiers produce more items
+     *  from the same input materials (replaces the previous per-tier speed scaling). */
+    val craftingOutputMultiplier: Float get() = efficiencyMultiplier
 
     /** Combined multiplier applied to gathering/combat loot and XP at collect time.
      *  = (session hours) × efficiencyMultiplier */
