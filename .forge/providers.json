@@ -1,0 +1,69 @@
+{
+  "_popis": [
+    "Řetězec bezplatných poskytovatelů LLM pro běh v GitHub Actions.",
+    "Zkouší se popořadě; první, který odpoví, vyhraje. Klíče se berou z prostředí",
+    "(v Actions z GitHub Secrets nebo Variables). Limity se mění – ověřeno 25. 9. 2026:",
+    "  gemini     – free tier, ~20 požadavků na model a den (naměřeno!), bez karty.",
+    "               POZOR: gemini-2.5-flash a gemini-2.0-flash vracely 404 („no longer",
+    "               available to new users“) – API samo doporučuje gemini-3.8-flash.",
+    "  mistral    – codestral-latest odpovídá (ověřeno 24.–25. 9.), umí dobře diff",
+    "  cerebras   – gpt-oss-120b; trvalý free tier zrušen, jede z trial kreditu",
+    "  groq       – free 30 RPM/1000 RPD (klíč zatím v Secrets NENÍ – doplnit!)",
+    "  openrouter – 18 modelů s příponou :free (ověřeno přes /models 25. 9. 2026),",
+    "               50 požadavků/den bez kreditů, free modely bývají rate-limited",
+    "Pořadí je záměrně takové, aby první byly ty s největší šancí odpovědět.",
+    "Uvnitř poskytovatele se zkouší modely popořadě – u kódovacích modelů je větší",
+    "šance, že dodrží formát úprav: aider s diff formátem u slabších modelů skončí",
+    "na „nochange“ (model navrhne patch, ale neaplikuje ho)."
+  ],
+  "providers": [
+    {
+      "name": "mistral",
+      "baseUrl": "https://api.mistral.ai/v1",
+      "keyEnv": "MISTRAL_API_KEY",
+      "models": [
+        "codestral-latest"
+      ]
+    },
+    {
+      "name": "cerebras",
+      "baseUrl": "https://api.cerebras.ai/v1",
+      "keyEnv": "CEREBRAS_API_KEY",
+      "models": [
+        "gpt-oss-120b"
+      ]
+    },
+    {
+      "name": "gemini",
+      "baseUrl": "https://generativelanguage.googleapis.com/v1beta/openai",
+      "keyEnv": "GEMINI_API_KEY",
+      "skromny": true,
+      "_skromny": "Malý denní limit (~20 dotazů/den). Naměřeno v běhu #61: rotace poslala úlohu na gemini, ten vrátil 429 'exceeded your current quota' a celý pokus se spálil. Proto se skromní poskytovatelé zkouší až na konci.",
+      "models": [
+        "gemini-3.8-flash",
+        "gemini-3-flash-preview",
+        "gemini-flash-latest"
+      ]
+    },
+    {
+      "name": "groq",
+      "baseUrl": "https://api.groq.com/openai/v1",
+      "keyEnv": "GROQ_API_KEY",
+      "models": [
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b"
+      ]
+    },
+    {
+      "name": "openrouter",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "keyEnv": "OPENROUTER_API_KEY",
+      "models": [
+        "poolside/laguna-s-2.1:free",
+        "cohere/north-mini-code:free",
+        "qwen/qwen3.8-27b:free",
+        "google/gemma-4-31b-it:free"
+      ]
+    }
+  ]
+}
