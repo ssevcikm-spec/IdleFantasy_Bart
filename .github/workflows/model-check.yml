@@ -1,0 +1,52 @@
+name: Kontrola modelů
+
+# Pravidelná kontrola dostupnosti řetězce bezplatných LLM. Free modely se ruší
+# a padají ve vlnách (naměřeno: mistral-large, open-mistral-nemo, qwen-3-32b,
+# llama-3.3-70b-versatile a z-ai/glm-5.2:free postupně zmizely z katalogů).
+# Bez kontroly se mrtvý model odhalí až uprostřed běhu agenta a spálí pokus.
+#
+# Běží denně (06:00 UTC) a jde spustit i ručně. Když najde model, který zmizel
+# z katalogu, založí issue, ať se ví, že je potřeba providers.json uklidit.
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Propinkuj řetězec (katalog, bez pingu)
+        id: check
+        # Klíč se bere z Tajemství, a když tam není, z Proměnných — stejná záměna
+        # jako u agent.yml (GitHub má "Secrets" a "Variables" vedle sebe).
+        env:
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY || vars.MISTRAL_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY || vars.CEREBRAS_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || vars.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY || vars.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY || vars.OPENROUTER_API_KEY }}
+        run: node .forge/node/providers-check.mjs --no-ping | tee /tmp/check.txt
+        # Exit 1 znamená "mrtvý model" — ale nesmí shodit celý job dřív,
+        # než se stihne založit issue.
+        continue-on-error: true
+
+      - name: Založ issue, když jsou mrtvé modely
+        if: steps.check.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "Mrtvé modely v providers.json (kontrola modelů)" \
+            --body-file /tmp/check.txt
