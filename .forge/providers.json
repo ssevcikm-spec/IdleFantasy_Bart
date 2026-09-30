@@ -14,7 +14,12 @@
     "Pořadí je záměrně takové, aby první byly ty s největší šancí odpovědět.",
     "Uvnitř poskytovatele se zkouší modely popořadě – u kódovacích modelů je větší",
     "šance, že dodrží formát úprav: aider s diff formátem u slabších modelů skončí",
-    "na „nochange“ (model navrhne patch, ale neaplikuje ho)."
+    "na „nochange“ (model navrhne patch, ale neaplikuje ho).",
+    "",
+    "SILNÉ MODELY (strongModels): granule roadmapy s `model: strong` (size_lines",
+    "> 60) smí zpracovat jen model z tohohle seznamu – workflow nastaví",
+    "FORGE_MIN_STRONG=strong a pick-provider vybírá jen z strongModels. Slabé",
+    "modely velkou granuli nikdy nedostanou, i kdyby fronta stála."
   ],
   "providers": [
     {
@@ -23,6 +28,9 @@
       "keyEnv": "MISTRAL_API_KEY",
       "models": [
         "codestral-latest"
+      ],
+      "strongModels": [
+        "codestral-latest"
       ]
     },
     {
@@ -30,6 +38,9 @@
       "baseUrl": "https://api.cerebras.ai/v1",
       "keyEnv": "CEREBRAS_API_KEY",
       "models": [
+        "gpt-oss-120b"
+      ],
+      "strongModels": [
         "gpt-oss-120b"
       ]
     },
@@ -52,6 +63,9 @@
       "models": [
         "openai/gpt-oss-120b",
         "openai/gpt-oss-20b"
+      ],
+      "strongModels": [
+        "openai/gpt-oss-120b"
       ]
     },
     {
