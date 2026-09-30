@@ -20,7 +20,7 @@
 import { readFileSync, appendFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { orderProviders, startIndex, probeOrder } from './node/provider-choice.mjs';
+import { orderProviders, startIndex, probeOrder, strongProviders } from './node/provider-choice.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -48,6 +48,22 @@ const arg = (jmeno) => {
 };
 const chciDalsiho = process.argv.includes('--next');
 const seed = arg('--seed') || process.env.FORGE_RUN_KEY || '';
+
+// GRANULE model: strong – workflow nastaví FORGE_MIN_STRONG=strong a řetězec se
+// zúží jen na silné modely (strongModels v providers.json). Slabý model velkou
+// granuli nikdy nedostane: když žádný silný model neodpoví, běh skončí chybou
+// a conductor granuli vrátí do fronty na další pokus (s cooldownem).
+const minStrong = process.env.FORGE_MIN_STRONG === 'strong';
+let providers = config.providers || [];
+if (minStrong) {
+  providers = strongProviders(providers);
+  console.log(`granule vyžaduje silný model – zužuji na: ${
+    providers.map((p) => p.name).join(', ') || 'žádný (chybí strongModels)'}`);
+  if (!providers.length) {
+    console.error('CHYBA: granule má model=strong, ale v providers.json není žádný strongModels.');
+    process.exit(1);
+  }
+}
 
 async function probe(baseUrl, apiKey, model) {
   const ctrl = new AbortController();
@@ -89,7 +105,7 @@ try {
   posledni = JSON.parse(raw).provider || '';
 } catch { /* první běh – žádný záznam není */ }
 
-const order = orderProviders(config.providers, seed);
+const order = orderProviders(providers, seed);
 const start = startIndex(order, posledni, chciDalsiho);
 const poradi = probeOrder(order, start);
 if (seed) {
